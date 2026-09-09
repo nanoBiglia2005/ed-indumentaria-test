@@ -3,6 +3,7 @@ import BaseModal from '@/components/ui/BaseModal';
 import SearchInput from '@/components/ui/SearchInput';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { normalizarBusqueda } from '@/utils/texto';
+import { presetsDeFecha } from '@/components/tabla/presetsFecha';
 
 import type { FiltroColumna, OpcionFiltro } from '@/components/tabla/tipos';
 
@@ -13,7 +14,7 @@ interface ColumnFilterModalProps {
   abierto: boolean;
   onCerrar: () => void;
   titulo: string;
-  tipo: 'texto' | 'rango' | 'seleccion' | null;
+  tipo: 'texto' | 'rango' | 'seleccion' | 'fecha' | null;
   filtroActual?: FiltroColumna;
   opciones?: OpcionFiltro[];
   onAplicar: (filtro: FiltroColumna | null) => void;
@@ -38,6 +39,9 @@ export default function ColumnFilterModal({
   const [valorTexto, setValorTexto] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
+  // Vista del filtro de fecha: arranca en los presets (Hoy/7 dias/30 dias/Mes/
+  // Año); "Personalizado" pasa a los inputs de rango existentes.
+  const [mostrarPersonalizado, setMostrarPersonalizado] = useState(false);
   const { seleccionados: idsSeleccionados, toggle: toggleId, setSeleccionados: setIdsSeleccionados } =
     useToggleSet<number>();
   const [busqueda, setBusqueda] = useState('');
@@ -61,12 +65,26 @@ export default function ColumnFilterModal({
       const rango = filtroActual?.tipo === 'rango' ? filtroActual : null;
       setDesde(rango && rango.desde !== null ? String(rango.desde) : '');
       setHasta(rango && rango.hasta !== null ? String(rango.hasta) : '');
+    } else if (tipo === 'fecha') {
+      const fecha = filtroActual?.tipo === 'fecha' ? filtroActual : null;
+      setDesde(fecha?.desde ?? '');
+      setHasta(fecha?.hasta ?? '');
+      // Siempre arranca en la lista de presets, aunque ya haya un filtro
+      // personalizado aplicado: entrar a editarlo es un click en
+      // "Personalizado" mas, igual que elegir cualquier otro preset.
+      setMostrarPersonalizado(false);
     } else if (tipo === 'seleccion') {
       const seleccion = filtroActual?.tipo === 'seleccion' ? filtroActual.ids : null;
       setIdsSeleccionados(new Set(seleccion ?? opciones.map((o) => o.id)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abierto, tipo]);
+
+  /** Un preset SE APLICA con el click: no pasa por el footer "Aplicar". */
+  const handleAplicarPreset = (desdePreset: string, hastaPreset: string) => {
+    onAplicar({ tipo: 'fecha', desde: desdePreset, hasta: hastaPreset });
+    onCerrar();
+  };
 
   const handleAplicar = () => {
     if (tipo === 'texto') {
@@ -109,6 +127,23 @@ export default function ColumnFilterModal({
       const todasSeleccionadas = opciones.length > 0 && idsSeleccionados.size === opciones.length;
       onAplicar(todasSeleccionadas ? null : { tipo: 'seleccion', ids: [...idsSeleccionados] });
       onCerrar();
+      return;
+    }
+
+    if (tipo === 'fecha') {
+      const valorDesde = desde.trim() === '' ? null : desde.trim();
+      const valorHasta = hasta.trim() === '' ? null : hasta.trim();
+
+      if (valorDesde !== null && valorHasta !== null && valorDesde > valorHasta) {
+        setError('La fecha "Desde" no puede ser posterior a la fecha "Hasta".');
+        return;
+      }
+
+      setError(null);
+      onAplicar(
+        valorDesde === null && valorHasta === null ? null : { tipo: 'fecha', desde: valorDesde, hasta: valorHasta }
+      );
+      onCerrar();
     }
   };
 
@@ -119,20 +154,31 @@ export default function ColumnFilterModal({
       titulo={`Filtrar por ${titulo}`}
       z={z}
       footer={
-        <>
+        tipo === 'fecha' && !mostrarPersonalizado ? (
+          // Los presets se aplican solos con el click: este footer solo
+          // ofrece cancelar, no hay nada pendiente que "Aplicar".
           <button
             onClick={onCerrar}
             className='flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer'
           >
             Cancelar
           </button>
-          <button
-            onClick={handleAplicar}
-            className='flex-1 px-4 py-2 cursor-pointer text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 transition-colors'
-          >
-            Aplicar
-          </button>
-        </>
+        ) : (
+          <>
+            <button
+              onClick={onCerrar}
+              className='flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer'
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleAplicar}
+              className='flex-1 px-4 py-2 cursor-pointer text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 transition-colors'
+            >
+              Aplicar
+            </button>
+          </>
+        )
       }
     >
       {error && (
@@ -171,6 +217,51 @@ export default function ColumnFilterModal({
               value={hasta}
               onChange={(e) => setHasta(e.target.value)}
               placeholder='Sin límite'
+              className='w-full px-3 py-2 border border-gray-300 rounded-md text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+            />
+          </div>
+        </div>
+      )}
+
+      {tipo === 'fecha' && !mostrarPersonalizado && (
+        <div className='flex flex-col gap-2'>
+          {presetsDeFecha().map((preset) => (
+            <button
+              key={preset.id}
+              type='button'
+              onClick={() => handleAplicarPreset(preset.desde, preset.hasta)}
+              className='w-full px-3 py-2 text-left text-sm font-medium text-gray-700 border border-gray-200 rounded-md hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700 transition-colors cursor-pointer'
+            >
+              {preset.etiqueta}
+            </button>
+          ))}
+          <button
+            type='button'
+            onClick={() => setMostrarPersonalizado(true)}
+            className='w-full px-3 py-2 text-left text-sm font-medium text-violet-600 border border-violet-600 rounded-md hover:bg-violet-50 transition-colors cursor-pointer'
+          >
+            Personalizado
+          </button>
+        </div>
+      )}
+
+      {tipo === 'fecha' && mostrarPersonalizado && (
+        <div className='flex gap-3'>
+          <div className='flex-1'>
+            <label className='block text-sm font-medium text-gray-700 mb-1'>Desde</label>
+            <input
+              type='date'
+              value={desde}
+              onChange={(e) => setDesde(e.target.value)}
+              className='w-full px-3 py-2 border border-gray-300 rounded-md text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+            />
+          </div>
+          <div className='flex-1'>
+            <label className='block text-sm font-medium text-gray-700 mb-1'>Hasta</label>
+            <input
+              type='date'
+              value={hasta}
+              onChange={(e) => setHasta(e.target.value)}
               className='w-full px-3 py-2 border border-gray-300 rounded-md text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
             />
           </div>

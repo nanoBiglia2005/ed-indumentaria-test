@@ -7,6 +7,7 @@ import {
 } from '@backend/types';
 import { formatearFecha, formatearPesos } from '@/utils/formato';
 import PaymentIcon from '@/components/ui/PaymentIcon';
+import { PALABRA_POR_ESTADO, ANCHOS_REMITO_CARD_POR_DEFECTO } from './estadosRemito';
 
 /**
  * Color segun el estado del remito (tabla ESTADOS_REMITOS).
@@ -41,13 +42,6 @@ const ESTILO_POR_ESTADO: Record<number, EstiloDeEstado> = {
   },
 };
 
-const PALABRA_POR_ESTADO: Record<number, string> = {
-  [ESTADO_CONFIRMADO]: 'Confirmada',
-  [ESTADO_FACTURADO]: 'Paga',
-  [ESTADO_ANULADO]: 'Anulada',
-  [ESTADO_DEVUELTO]: 'Devuelta',
-};
-
 interface RemitoCardProps {
   remito: RemitoConDetalles;
   /** Metodos de pago, para rotular cada total mientras no este cobrado. */
@@ -62,6 +56,18 @@ interface RemitoCardProps {
   onDevolver?: (remito: RemitoConDetalles) => void;
   /** Solo sobre ventas vigentes (ver `puedeReimprimir`): una anulada no se reimprime. */
   onReimprimir?: (remito: RemitoConDetalles) => void;
+  /**
+   * Ancho (px) de las columnas de valor variable, calculado por ListaDeRemitos
+   * segun el remito mas ancho VISIBLE (ver MedidorAnchosRemitoCard) — asi
+   * quedan alineadas entre tarjetas sin volver a un ancho fijo pensado para el
+   * peor caso.
+   */
+  anchoCodigo?: number;
+  anchoMonto?: number;
+  anchoEstado?: number;
+  anchoCliente?: number;
+  anchoFechaEmision?: number;
+  anchoFechaCreacion?: number;
 }
 
 function RemitoCard({
@@ -73,17 +79,20 @@ function RemitoCard({
   onAnular,
   onDevolver,
   onReimprimir,
+  anchoCodigo = ANCHOS_REMITO_CARD_POR_DEFECTO.codigo,
+  anchoMonto = ANCHOS_REMITO_CARD_POR_DEFECTO.total,
+  anchoEstado = ANCHOS_REMITO_CARD_POR_DEFECTO.estado,
+  anchoCliente = ANCHOS_REMITO_CARD_POR_DEFECTO.cliente,
+  anchoFechaEmision = ANCHOS_REMITO_CARD_POR_DEFECTO.fecha_emision,
+  anchoFechaCreacion = ANCHOS_REMITO_CARD_POR_DEFECTO.fecha_creacion,
 }: RemitoCardProps) {
   const metodosConRecargo = metodos.filter((metodo) => metodo.recargo > 0);
 
   const estilo =
     ESTILO_POR_ESTADO[remito.id_estado ?? ESTADO_FACTURADO] ?? ESTILO_POR_ESTADO[ESTADO_FACTURADO];
   const palabra = PALABRA_POR_ESTADO[remito.id_estado ?? ESTADO_FACTURADO] ?? 'Desconocido';
-  // Devolver solo tiene sentido sobre una venta ya cobrada: la lista del
-  // historial mezcla estados, asi que se filtra por remito y no por pagina.
+
   const puedeDevolver = Boolean(onDevolver) && remito.id_estado === ESTADO_FACTURADO;
-  // Un remito anulado o devuelto ya no existe comercialmente: un ticket suyo
-  // circulando es peor que ninguno.
   const puedeReimprimir =
     Boolean(onReimprimir) &&
     (remito.id_estado === ESTADO_CONFIRMADO || remito.id_estado === ESTADO_FACTURADO);
@@ -92,34 +101,43 @@ function RemitoCard({
   // shrink-0: dentro de la lista en columna, si no, las tarjetas se aplastan
   // en vez de dejar scrollear cuando hay muchas ventas.
   return (
-    <div className={`w-full shrink-0 border ${estilo.borde} rounded-xl shadow select-none overflow-hidden`}>
+    <div className={`w-full shrink-0 border ${estilo.borde} rounded-xl shadow-lg hover:shadow-xl select-none overflow-hidden`}>
       <button
         type='button'
         onClick={onToggle}
         className='w-full flex items-center justify-between gap-4 pe-5 cursor-pointer text-left hover:bg-amber-50 transition-colors duration-100 ease-in'
       > 
-        <div className={`flex gap-3 items-center ${estilo.texto}`}>
-          <span className={`text-2xl font-bold px-5 py-3 ${abierto ? `text-white ${estilo.fondo}` : estilo.texto} transition-colors duration-100 ease-in border-e-1`}>
+        <div className={`flex gap-3 items-center min-w-0 overflow-x-auto ${estilo.texto}`}>
+          <span
+            style={{ width: anchoCodigo }}
+            className={`text-2xl font-bold px-5 py-3 text-center ${abierto ? `text-white ${estilo.fondo}` : estilo.texto} transition-colors duration-100 ease-in border-e-1`}
+          >
             <p>{remito.cod_mes}-{remito.cod_remito_final}</p>
           </span>
-          
+
+          {/* Estado como pill de color: es el dato mas escaneable de un vistazo
+              (junto con codigo y total), no un dato mas apilado como fecha o
+              cliente — de ahi que vaya justo despues del codigo, antes del
+              total, y no como texto chico con label. */}
+          {remito.id_estado !== ESTADO_CONFIRMADO && (
+            <div style={{ width: anchoEstado }} className='flex items-center px-2'>
+              <span
+                className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-xs font-bold text-white ${estilo.fondo}`}
+              >
+                {palabra}
+              </span>
+            </div>
+          )}
+
           {remito.id_estado !== ESTADO_CONFIRMADO ? (
-            <div className='flex items-center gap-x-5'>
-              <span className='text-xl font-bold w-29'>{formatearPesos(remito.total_final ?? remito.total_efectivo)}</span>
-              <div className='flex flex-col w-18'>
-                <span className={`text-xs ${estilo.texto}`}>Estado</span>
-                <span className='font-semibold'>{palabra}</span> 
-              </div>
-              <div className='flex flex-col'>
-                <span className='text-xs text-gray-400'>Fecha de Emisión</span>
-                <span className='text-black font-medium'>{formatearFecha(remito.fecha_de_emision)}</span>
-            </div>
-            </div>
+            <span style={{ width: anchoMonto }} className='text-xl font-bold px-2'>
+              {formatearPesos(remito.total_final ?? remito.total_efectivo)}
+            </span>
           ) : (
-            <div className='flex flex-col w-26'>
+            <div style={{ width: anchoMonto }} className='flex flex-col px-2'>
               <span className='font-semibold text-gray-900 flex gap-1 items-center'>
                 <PaymentIcon paymentId={1} height={18}/>
-                {formatearPesos(remito.total_efectivo) ?? 0}         
+                {formatearPesos(remito.total_efectivo) ?? 0}
               </span>
               {metodosConRecargo.map((metodo) => (
                 <span
@@ -128,18 +146,25 @@ function RemitoCard({
                   title={`Total con ${metodo.nombre_tipo_de_pago}`}
                 >
                   <PaymentIcon paymentId={metodo.id_tipos_de_pago} height={18}/>
-                  {formatearPesos(remito.totales_por_metodo?.[metodo.id_tipos_de_pago]) ?? 0} 
+                  {formatearPesos(remito.totales_por_metodo?.[metodo.id_tipos_de_pago]) ?? 0}
                 </span>
               ))}
             </div>
-          )}  
-          <div className='flex flex-col'>
+          )}
+
+          {remito.id_estado !== ESTADO_CONFIRMADO && (
+            <div style={{ width: anchoFechaEmision }} className='flex flex-col px-2'>
+              <span className='text-xs text-gray-400'>Fecha de Emisión</span>
+              <span className={`font-medium ${!remito.fecha_de_emision ? 'text-gray text-sm' : 'text-black'}`}>{formatearFecha(remito.fecha_de_emision)}</span>
+            </div>
+          )}
+          <div style={{ width: anchoFechaCreacion }} className='flex flex-col px-2'>
             <span className='text-xs text-gray-400'>Fecha de Creación</span>
-            <span className='text-black font-medium'>{formatearFecha(remito.fecha_de_creacion)}</span>
+            <span className={`font-medium ${!remito.fecha_de_creacion ? 'text-gray text-sm' : 'text-black'}`}>{formatearFecha(remito.fecha_de_creacion)}</span>
           </div>
-          <div className='flex flex-col'>
+          <div style={{ width: anchoCliente }} className='flex flex-col px-2'>
             <span className='text-xs text-gray-400'>Cliente</span>
-            <span className='text-black font-medium'>{remito.CLIENTES ? remito.CLIENTES.nombre + ' ' +remito.CLIENTES.apellido : 'No Asignado'}</span>
+            <span className={`text-black font-medium`}>{remito.CLIENTES ? remito.CLIENTES.nombre + ' ' +remito.CLIENTES.apellido : 'No Asignado'}</span>
           </div>
         </div>
         <div className='flex items-center gap-4 shrink-0'>
@@ -228,45 +253,58 @@ function RemitoCard({
         }`}
       >
 
-        <div className='px-5 py-2 divide-y divide-black/5'>
+        <div className='px-5 py-2 overflow-x-auto'>
           {remito.DETALLES_REMITO.length === 0 ? (
             <p className='text-sm text-gray-400 italic py-2'>Sin artículos</p>
           ) : (
-            remito.DETALLES_REMITO.map((detalle) => (
-              <div key={detalle.id_detalle} className='flex items-center justify-between gap-3 py-2 text-sm text-black'>
-                <div className='flex flex-col min-w-[300px] font-medium'>
-                  <span className='truncate'>{detalle.ARTICULOS?.descripcion ?? `Artículo ${detalle.id_articulo}`}</span>
-                  <div className='flex gap-x-3'>
-                    <div className='flex gap-1 items-center min-w-18'>
-                      <PaymentIcon paymentId={1} height={16}/>
-                      <span className='text-gray-500'>{formatearPesos(detalle.precio ?? 0)}</span>
-                    </div> 
-                    {metodosConRecargo.map((metodo) => (
-                      <div className='text-violet-500 flex gap-1 items-center min-w-18' key={metodo.id_tipos_de_pago}>
-                        <PaymentIcon paymentId={metodo.id_tipos_de_pago} height={16}/>
-                        <span>{formatearPesos(detalle.precios_por_metodo[metodo.id_tipos_de_pago])}</span>
-                      </div>
-                    ))}
-                  </div>       
-                </div>     
-                <div className='flex items-center gap-4 shrink-0 text-gray-600'>
-                  <span>x{detalle.cantidad}</span>
-                  <div className='flex-col text-md'>
-                    <div className='flex gap-1 items-center text-black justify-end'>
-                      <span className='font-medium'>{formatearPesos(detalle.precio && detalle.cantidad ? detalle.precio * detalle.cantidad : 0)}</span>
-                      <PaymentIcon paymentId={1} height={16}/>
-                    </div>
-                    {metodosConRecargo.map((metodo) => (
-                    <div className='text-violet-500 flex gap-1 items-center justify-end' key={metodo.id_tipos_de_pago}>
-                      <span className='font-medium'>{formatearPesos(detalle.precios_por_metodo[metodo.id_tipos_de_pago] 
-                      && detalle.cantidad ? detalle.precios_por_metodo[metodo.id_tipos_de_pago] * detalle.cantidad : 0)}</span>
-                      <PaymentIcon paymentId={metodo.id_tipos_de_pago} height={16}/>
-                    </div>
-                    ))}
-                  </div>
+            <div className='min-w-max divide-y divide-black/5'>
+              {/* Rotula una sola vez que las dos columnas de la derecha son
+                  precio unitario (arriba, en la fila del articulo) y subtotal
+                  (con cantidad ya aplicada) — evita repetir la aclaracion en
+                  cada fila cuando hay 2-3 metodos con recargo. */}
+              <div className='flex items-center justify-between gap-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400'>
+                <span>Artículo / precio unitario</span>
+                <div className='flex items-center gap-4 shrink-0'>
+                  <span>Cant.</span>
+                  <span>Subtotal</span>
                 </div>
               </div>
-            ))
+              {remito.DETALLES_REMITO.map((detalle) => (
+                <div key={detalle.id_detalle} className='flex items-center justify-between gap-3 py-2 text-sm text-black'>
+                  <div className='flex flex-col min-w-[300px] font-medium'>
+                    <span className='truncate'>{detalle.ARTICULOS?.descripcion ?? `Artículo ${detalle.id_articulo}`}</span>
+                    <div className='flex flex-wrap gap-x-3 gap-y-0.5'>
+                      <div className='flex gap-1 items-center min-w-18'>
+                        <PaymentIcon paymentId={1} height={16}/>
+                        <span className='text-gray-500'>{formatearPesos(detalle.precio ?? 0)}</span>
+                      </div>
+                      {metodosConRecargo.map((metodo) => (
+                        <div className='text-violet-500 flex gap-1 items-center min-w-18' key={metodo.id_tipos_de_pago}>
+                          <PaymentIcon paymentId={metodo.id_tipos_de_pago} height={16}/>
+                          <span>{formatearPesos(detalle.precios_por_metodo[metodo.id_tipos_de_pago])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-4 shrink-0 text-gray-600'>
+                    <span>x{detalle.cantidad}</span>
+                    <div className='flex-col text-md'>
+                      <div className='flex gap-1 items-center text-black justify-end'>
+                        <span className='font-medium'>{formatearPesos(detalle.precio && detalle.cantidad ? detalle.precio * detalle.cantidad : 0)}</span>
+                        <PaymentIcon paymentId={1} height={16}/>
+                      </div>
+                      {metodosConRecargo.map((metodo) => (
+                      <div className='text-violet-500 flex gap-1 items-center justify-end' key={metodo.id_tipos_de_pago}>
+                        <span className='font-medium'>{formatearPesos(detalle.precios_por_metodo[metodo.id_tipos_de_pago]
+                        && detalle.cantidad ? detalle.precios_por_metodo[metodo.id_tipos_de_pago] * detalle.cantidad : 0)}</span>
+                        <PaymentIcon paymentId={metodo.id_tipos_de_pago} height={16}/>
+                      </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

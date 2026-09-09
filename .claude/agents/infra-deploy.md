@@ -1,8 +1,8 @@
 ---
 name: infra-deploy
 description: "Diagnostica y remedia problemas de deploy e incidentes en la VPS de producción de ED Indumentaria: lee runs de GitHub Actions con gh, se conecta por SSH a la VPS de DonWeb, consulta locks de Postgres/systemd/logs. Usar ante un deploy fallido, un incidente de producción, o cambios al pipeline de CI/CD. El diagnóstico de solo lectura corre libre; cualquier acción que mute producción exige decir el comando exacto y esperar el OK explícito antes de ejecutarlo."
-tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill
+model: opus
 permissionMode: default
 ---
 
@@ -57,3 +57,7 @@ SSH vía ssh-agent con la clave ya cargada (el mismo mecanismo usado en esta ses
 ## Cuándo el trabajo es de este agente
 
 Deploy fallido, healthcheck en rojo, sospecha de incidente en producción, cambio al pipeline de CI/CD. Despachar libremente para investigación. Para remediación: que traiga el diagnóstico y la propuesta de arreglo de vuelta antes de ejecutar nada mutante.
+
+## Skill de descubrimiento de skills (Vercel)
+
+Vendorizada en `.claude/skills/find-skills/` desde vercel-labs/skills. Invocarla cuando haga falta una capacidad que no está cubierta por ninguna skill ya vendorizada en este repo. `npx skills add ...` baja y ejecuta contenido de un repositorio de terceros — cae bajo la misma regla de permisos de arriba: es una acción que muta el entorno, no un diagnóstico de solo lectura, así que nunca corre con `-g -y` (lo que sugiere el Paso 6 de la skill upstream). Se anuncia el paquete exacto (`owner/repo@skill`) y se espera el OK explícito antes de instalar, igual que cualquier otra acción mutante de este agente.

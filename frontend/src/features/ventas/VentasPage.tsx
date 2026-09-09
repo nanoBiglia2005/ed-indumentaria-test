@@ -1,11 +1,17 @@
-import { useEffect, useState, useMemo} from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import type { RemitoConDetalles, RemitoCreado, TIPOS_DE_PAGO } from '@backend/types';
 import { listarTiposDePago } from '@/api/tiposDePago';
-import { useFetchLista } from '@/hooks/useFetchLista';
-import { listarRemitosPendientes } from '@/api/remitos';
+import { useTablaServidor } from '@/components/tabla/useTablaServidor';
+import { useResetAlCambiar } from '@/hooks/useResetAlCambiar';
+import Paginador from '@/components/tabla/Paginador';
+import { listarRemitosPendientesPagina } from '@/api/remitos';
+import type { ParamsRemitos } from '@/api/remitos';
 import ConfirmarAccionRemitoModal from '@/features/ventas/modales/ConfirmarAccionRemitoModal';
 import { ACCION_ANULAR } from '@/features/ventas/modales/accionesDeRemito';
 import ListaDeRemitos from '@/features/ventas/ListaDeRemitos';
+import { useOpcionesDeFiltro } from '@/features/ventas/useOpcionesDeFiltro';
+import type { OpcionesCargadas } from '@/features/ventas/useOpcionesDeFiltro';
+import { camposVentasPendientes } from '@/features/ventas/campos';
 import MetodoPagoModal from '@/features/ventas/modales/MetodoPagoModal';
 import NuevaVentaModal from '@/features/ventas/modales/NuevaVentaModal';
 import Notificacion from '@/components/ui/Notificacion';
@@ -14,6 +20,8 @@ import VentaExitosaModal from '@/features/ventas/modales/VentaExitosaModal';
 import { codigoRemito } from '@/features/ventas/codigoRemito';
 import { useNotificacion } from '@/hooks/useNotificacion';
 
+const TAMANO_PAGINA = 30;
+
 /** Como se nombra la venta en los avisos: "Venta 0812", o sin codigo si no tiene. */
 const textoDelRemito = (remito: RemitoConDetalles) => {
   const codigo = codigoRemito(remito.cod_mes, remito.cod_remito_final);
@@ -21,16 +29,70 @@ const textoDelRemito = (remito: RemitoConDetalles) => {
 };
 
 function VentasPage() {
-  const {
-    datos: pendientes,
-    cargando,
-    error,
-    recargar: fetchPendientes,
-  } = useFetchLista(
-    listarRemitosPendientes,
-    'No se pudieron cargar las ventas pendientes.',
-    'Error al obtener las ventas pendientes'
+  const [pendientes, setPendientes] = useState<RemitoConDetalles[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
+
+  // Opciones del filtro de seleccion recien abierto (hoy solo "Cliente"): el
+  // estado vive aca, ANTES de useTablaServidor, porque este lo necesita de
+  // entrada — ver el comentario de cabecera de useOpcionesDeFiltro.
+  const [opciones, setOpciones] = useState<OpcionesCargadas | null>(null);
+
+  // Estado de filtros por columna + multi-orden (sin filtrar en memoria):
+  // Ventas no ofrece Estado ni Fecha de emision (ver campos.ts).
+  const tabla = useTablaServidor({ columnas: camposVentasPendientes, opciones: opciones?.valores ?? [] });
+
+  // Cambia de identidad solo cuando cambia algun filtro o el orden.
+  const params = useMemo<ParamsRemitos>(
+    () => ({ filtros: tabla.filtrosColumna, orden: tabla.ordenColumnas }),
+    [tabla.filtrosColumna, tabla.ordenColumnas]
   );
+
+  const opcionesListas = useOpcionesDeFiltro('pendientes', params, tabla.columnaAbierta, opciones, setOpciones);
+
+  // Cualquier cambio de filtro/orden vuelve a la primera pagina.
+  useResetAlCambiar(params, () => setPagina(1));
+
+  // Cualquier disparador de una consulta nueva (filtro/orden, pagina o
+  // recarga) marca "cargando" y limpia el error ya en este render — evita
+  // setState sincronico dentro del efecto (react-hooks/set-state-in-effect).
+  const marcarCargando = () => {
+    setCargando(true);
+    setError(null);
+  };
+  useResetAlCambiar(params, marcarCargando);
+  useResetAlCambiar(pagina, marcarCargando);
+  useResetAlCambiar(recarga, marcarCargando);
+
+  // Las respuestas pueden llegar desordenadas: solo se acepta la de la ultima
+  // peticion disparada.
+  const secuencia = useRef(0);
+
+  useEffect(() => {
+    const peticion = ++secuencia.current;
+
+    listarRemitosPendientesPagina(params, pagina, TAMANO_PAGINA)
+      .then((respuesta) => {
+        if (peticion !== secuencia.current) return;
+        setPendientes(respuesta.remitos);
+        setTotal(respuesta.total);
+        const ultima = Math.max(1, Math.ceil(respuesta.total / TAMANO_PAGINA));
+        if (pagina > ultima) setPagina(ultima);
+      })
+      .catch((err) => {
+        if (peticion !== secuencia.current) return;
+        console.error('Error al obtener las ventas pendientes:', err);
+        setError('No se pudieron cargar las ventas pendientes.');
+      })
+      .finally(() => {
+        if (peticion === secuencia.current) setCargando(false);
+      });
+  }, [params, pagina, recarga]);
+
+  const fetchPendientes = () => setRecarga((n) => n + 1);
 
   const [isNuevaVentaOpen, setIsNuevaVentaOpen] = useState(false);
   // Remito recien registrado: se pregunta si se sigue al pago.
@@ -113,14 +175,34 @@ function VentasPage() {
 
         <ListaDeRemitos
           remitos={pendientes}
-          cargando={cargando}
+          cargando={cargando && pendientes.length === 0}
           error={error}
           textoCargando='Cargando ventas pendientes...'
-          textoVacio='No hay ventas pendientes de cobro.'
+          textoVacio='No hay ventas pendientes que coincidan con los filtros.'
           anchoCompleto
           onPagar={setRemitoACobrar}
           onAnular={setRemitoAAnular}
+          campos={camposVentasPendientes}
+          filtrosColumna={tabla.filtrosColumna}
+          ordenColumnas={tabla.ordenColumnas}
+          onClickHeader={tabla.handleClickHeader}
+          onClickOrdenar={tabla.handleClickOrdenar}
+          columnaAbierta={tabla.columnaAbierta}
+          opcionesFiltroAbierto={tabla.opcionesFiltroAbierto}
+          opcionesListas={opcionesListas}
+          onCerrarFiltro={() => tabla.setColumnaFiltroAbierta(null)}
+          onAplicarFiltro={tabla.handleAplicarFiltro}
         />
+
+        <div className='w-full'>
+          <Paginador
+            pagina={pagina}
+            tamano={TAMANO_PAGINA}
+            total={total}
+            cargando={cargando}
+            onCambiarPagina={setPagina}
+          />
+        </div>
       </div>
 
       <NuevaVentaModal

@@ -1,8 +1,8 @@
 ---
 name: frontend
 description: "Implementa y mantiene el frontend React/TypeScript de ED Indumentaria: páginas, componentes, hooks, cliente de API. Usar para nuevas features de UI, cambios de página/componente, estilos Tailwind o tests de frontend. NO toca rutas/servicios del backend, schema.prisma, ni el código Python del subsistema de impresión."
-tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill
+model: sonnet
 ---
 
 # Agente Frontend — ED Indumentaria
@@ -42,3 +42,18 @@ El lint puede tener warnings preexistentes (24 de `react-hooks/set-state-in-effe
 ## Cuándo el trabajo es de este agente
 
 Página nueva, componente nuevo, modal nuevo, cambio de estilos, columna nueva de tabla, cualquier cosa confinada a `frontend/src/`. Un cambio de contrato cruzado (agregar un rol, cambiar una constante compartida) se coordina con la Skill `sync-shared-constant`.
+
+## Skills de React (Vercel)
+
+Vendorizadas en `.claude/skills/` desde vercel-labs/agent-skills. Invocar antes de escribir o revisar código cuando aplique:
+- `react-best-practices` — antes de escribir o revisar un componente/página nuevo, o si hay sospecha de un problema de performance (waterfalls, bundle, re-renders).
+- `composition-patterns` — al diseñar un componente con varios props booleanos o al extraer una API reusable (piezas de `components/ui/`).
+- `react-view-transitions` — solo si la tarea pide animar una transición de página, de lista, o un enter/exit.
+
+## Skill de diseño (Anthropic)
+
+Vendorizada en `.claude/skills/frontend-design/` desde anthropics/skills. Invocar antes de encarar una página o componente nuevo donde la dirección visual importa (no para un ajuste puntual de estilos): fuerza a elegir paleta, tipografía y layout a propósito en vez de caer en los defaults genéricos, y a revisar la elección contra esos defaults antes de escribir código. Las decisiones de esta skill se subordinan a las reglas duras de este archivo y del `CLAUDE.md` (violeta/amber como colores principales, Tailwind v4 con clases inline, sin librerías nuevas sin justificación): es guía de criterio estético, no reemplaza esas convenciones.
+
+## Skill de descubrimiento de skills (Vercel)
+
+Vendorizada en `.claude/skills/find-skills/` desde vercel-labs/skills. Invocarla cuando haga falta una capacidad que no está cubierta por ninguna skill ya vendorizada en este repo. Instalar una skill (`npx skills add ...`) baja y ejecuta contenido de un repositorio de terceros — es una acción de red con blast radius, no un diagnóstico de solo lectura. La skill upstream sugiere `-g -y` para saltar la confirmación (su Paso 6, "Offer to Install"): eso no aplica acá. Cualquier instalación se anuncia con el paquete exacto (`owner/repo@skill`) y espera el OK explícito del usuario antes de correrse, igual que "sin librerías nuevas sin justificación" ya exige para cualquier dependencia del frontend.

@@ -9,6 +9,13 @@ interface UseTablaServidorParams<T> {
    * pagina. Se ignoran en las columnas que declaran `opcionesEstaticas`.
    */
   opciones: OpcionFiltro[];
+  /**
+   * Filtros con los que arranca la tabla (ej: Historial arranca acotado a los
+   * ultimos 30 dias). Solo se lee en el render inicial, como cualquier
+   * argumento de useState: cambiarlo despues del primer render no reaplica el
+   * filtro.
+   */
+  filtrosIniciales?: Record<string, FiltroColumna>;
 }
 
 /**
@@ -21,8 +28,10 @@ interface UseTablaServidorParams<T> {
  * Click en el icono de orden: apila la columna como criterio (asc -> desc ->
  * quitar); shift+click la vuelve el unico criterio.
  */
-export function useTablaServidor<T>({ columnas, opciones }: UseTablaServidorParams<T>) {
-  const [filtrosColumna, setFiltrosColumna] = useState<Record<string, FiltroColumna>>({});
+export function useTablaServidor<T>({ columnas, opciones, filtrosIniciales }: UseTablaServidorParams<T>) {
+  const [filtrosColumna, setFiltrosColumna] = useState<Record<string, FiltroColumna>>(
+    filtrosIniciales ?? {}
+  );
   const [columnaFiltroAbierta, setColumnaFiltroAbierta] = useState<string | null>(null);
   // Lista de criterios de orden ordenada por prioridad: el primero es el
   // criterio principal, los siguientes desempatan en orden.
