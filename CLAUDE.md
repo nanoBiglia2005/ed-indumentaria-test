@@ -157,8 +157,10 @@
 ## Ramas y deploy
 - **`main` = producción, protegida.** No acepta push directo: todo entra por Pull Request.
   `testing` es la rama de trabajo diaria.
-- Mergear a `main` dispara el deploy automático, que **queda pausado esperando aprobación manual**
-  en GitHub. El deploy reinterrumpe el backend unos segundos: aprobarlo en un momento sin ventas.
+- Mergear a `main` dispara el deploy automático, que corre **sin pausa de aprobación manual**
+  (el *environment* `producción` en GitHub no tiene protection rules: al ser un único desarrollador
+  no hace falta el gate). El deploy reinterrumpe el backend unos segundos: mergear en un momento
+  sin ventas.
 - El CI (`.github/workflows/ci.yml`) corre en cada PR a `main` y en cada push a `testing`:
   tests de backend, typecheck, tests de frontend y lint. **Bloquea el merge si falla.**
   El lint bloquea ante errores; las advertencias pendientes no frenan el merge.

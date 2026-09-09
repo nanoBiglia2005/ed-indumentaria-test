@@ -2,7 +2,7 @@
 name: backend
 description: "Implementa y mantiene el backend Express/Prisma de ED Indumentaria: rutas, servicios, lib/, schema.prisma y migraciones. Usar para nuevos endpoints, lógica de negocio en services/, cambios de esquema o cobertura de tests del backend. NO toca UI del frontend, el subsistema de impresión (print-service/printer-client) ni los workflows de CI/CD."
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+model: sonnet
 ---
 
 # Agente Backend — ED Indumentaria

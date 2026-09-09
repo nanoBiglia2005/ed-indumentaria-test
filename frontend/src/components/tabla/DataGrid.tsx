@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { resaltarCoincidencia } from '@/utils/texto';
-import IconoOrden from './IconoOrden';
+import BotonFiltroOrden from './BotonFiltroOrden';
 import type { ColumnaTabla, CriterioOrden, FiltroColumna } from './tipos';
 
 /**
@@ -161,65 +161,18 @@ export default function DataGrid<T>({
               const prioridadOrden = ordenColumnas.findIndex((c) => c.key === columna.filtroKey);
               const ordenActivo = prioridadOrden === -1 ? null : ordenColumnas[prioridadOrden].direccion;
               return (
-                <div
+                <BotonFiltroOrden
                   key={columna.header}
-                  className={`flex items-stretch border-black/35 text-xs font-medium border-b border-l transition-colors duration-100 ease-in ${
-                    filtroActivo ? 'bg-violet-500 text-white' : 'bg-stone-100'
-                  }`}
-                >
-                  <button
-                    type='button'
-                    onClick={() => onClickHeader(columna)}
-                    title={filtroActivo ? `Quitar filtro de ${columna.header}` : `Filtrar por ${columna.header}`}
-                    className={`flex-1 min-w-0 ${claseBtnFiltro} flex items-center cursor-pointer transition-colors duration-100 ease-in text-left ${
-                      filtroActivo ? 'hover:bg-violet-600' : 'hover:bg-amber-100'
-                    }`}
-                  >
-                    <span className='flex-1 truncate'>{columna.header}</span>
-                    <svg
-                      className={`h-3.5 w-3.5 shrink-0 ${filtroActivo ? 'text-white' : 'text-gray-400'}`}
-                      fill='none'
-                      viewBox='0 0 24 24'
-                      stroke='currentColor'
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        d='M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z'
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    type='button'
-                    onClick={(e) => onClickOrdenar(columna, e)}
-                    title={
-                      ordenActivo === 'asc'
-                        ? 'Orden ascendente. Click: invertir. Shift+click: usar solo esta columna.'
-                        : ordenActivo === 'desc'
-                        ? 'Orden descendente. Click: quitar. Shift+click: usar solo esta columna.'
-                        : `Ordenar por ${columna.header}. Shift+click: usar solo esta columna.`
-                    }
-                    className={`shrink-0 ${claseBtnOrden} flex items-center gap-0.5 cursor-pointer transition-colors duration-100 ease-in ${
-                      filtroActivo ? 'hover:bg-violet-600' : 'hover:bg-amber-100'
-                    } ${
-                      ordenActivo
-                        ? filtroActivo
-                          ? 'text-white'
-                          : 'text-violet-600'
-                        : filtroActivo
-                        ? 'text-white/70'
-                        : 'text-gray-400'
-                    }`}
-                  >
-                    <IconoOrden direccion={ordenActivo} />
-                    {ordenColumnas.length > 1 && prioridadOrden !== -1 && (
-                      <span className='text-[10px] font-bold leading-none w-3 text-center'>
-                        {prioridadOrden + 1}
-                      </span>
-                    )}
-                  </button>
-                </div>
+                  columna={columna}
+                  filtroActivo={Boolean(filtroActivo)}
+                  ordenActivo={ordenActivo}
+                  prioridadOrden={prioridadOrden}
+                  totalCriterios={ordenColumnas.length}
+                  onClickHeader={onClickHeader}
+                  onClickOrdenar={onClickOrdenar}
+                  claseBtnFiltro={claseBtnFiltro}
+                  claseBtnOrden={claseBtnOrden}
+                />
               );
             })}
             <span

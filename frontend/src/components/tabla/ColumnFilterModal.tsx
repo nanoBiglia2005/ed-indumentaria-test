@@ -13,7 +13,7 @@ interface ColumnFilterModalProps {
   abierto: boolean;
   onCerrar: () => void;
   titulo: string;
-  tipo: 'texto' | 'rango' | 'seleccion' | null;
+  tipo: 'texto' | 'rango' | 'seleccion' | 'fecha' | null;
   filtroActual?: FiltroColumna;
   opciones?: OpcionFiltro[];
   onAplicar: (filtro: FiltroColumna | null) => void;
@@ -61,6 +61,10 @@ export default function ColumnFilterModal({
       const rango = filtroActual?.tipo === 'rango' ? filtroActual : null;
       setDesde(rango && rango.desde !== null ? String(rango.desde) : '');
       setHasta(rango && rango.hasta !== null ? String(rango.hasta) : '');
+    } else if (tipo === 'fecha') {
+      const fecha = filtroActual?.tipo === 'fecha' ? filtroActual : null;
+      setDesde(fecha?.desde ?? '');
+      setHasta(fecha?.hasta ?? '');
     } else if (tipo === 'seleccion') {
       const seleccion = filtroActual?.tipo === 'seleccion' ? filtroActual.ids : null;
       setIdsSeleccionados(new Set(seleccion ?? opciones.map((o) => o.id)));
@@ -108,6 +112,23 @@ export default function ColumnFilterModal({
     if (tipo === 'seleccion') {
       const todasSeleccionadas = opciones.length > 0 && idsSeleccionados.size === opciones.length;
       onAplicar(todasSeleccionadas ? null : { tipo: 'seleccion', ids: [...idsSeleccionados] });
+      onCerrar();
+      return;
+    }
+
+    if (tipo === 'fecha') {
+      const valorDesde = desde.trim() === '' ? null : desde.trim();
+      const valorHasta = hasta.trim() === '' ? null : hasta.trim();
+
+      if (valorDesde !== null && valorHasta !== null && valorDesde > valorHasta) {
+        setError('La fecha "Desde" no puede ser posterior a la fecha "Hasta".');
+        return;
+      }
+
+      setError(null);
+      onAplicar(
+        valorDesde === null && valorHasta === null ? null : { tipo: 'fecha', desde: valorDesde, hasta: valorHasta }
+      );
       onCerrar();
     }
   };
@@ -171,6 +192,29 @@ export default function ColumnFilterModal({
               value={hasta}
               onChange={(e) => setHasta(e.target.value)}
               placeholder='Sin límite'
+              className='w-full px-3 py-2 border border-gray-300 rounded-md text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+            />
+          </div>
+        </div>
+      )}
+
+      {tipo === 'fecha' && (
+        <div className='flex gap-3'>
+          <div className='flex-1'>
+            <label className='block text-sm font-medium text-gray-700 mb-1'>Desde</label>
+            <input
+              type='date'
+              value={desde}
+              onChange={(e) => setDesde(e.target.value)}
+              className='w-full px-3 py-2 border border-gray-300 rounded-md text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+            />
+          </div>
+          <div className='flex-1'>
+            <label className='block text-sm font-medium text-gray-700 mb-1'>Hasta</label>
+            <input
+              type='date'
+              value={hasta}
+              onChange={(e) => setHasta(e.target.value)}
               className='w-full px-3 py-2 border border-gray-300 rounded-md text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
             />
           </div>

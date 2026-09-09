@@ -2,7 +2,7 @@
 name: infra-deploy
 description: "Diagnostica y remedia problemas de deploy e incidentes en la VPS de producción de ED Indumentaria: lee runs de GitHub Actions con gh, se conecta por SSH a la VPS de DonWeb, consulta locks de Postgres/systemd/logs. Usar ante un deploy fallido, un incidente de producción, o cambios al pipeline de CI/CD. El diagnóstico de solo lectura corre libre; cualquier acción que mute producción exige decir el comando exacto y esperar el OK explícito antes de ejecutarlo."
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+model: opus
 permissionMode: default
 ---
 

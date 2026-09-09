@@ -2,7 +2,7 @@
 name: print-stack
 description: "Dueño del pipeline de impresión de ED Indumentaria de punta a punta: rutas/servicios de impresión en el backend, el print-service (FastAPI/Python) y el printer-client (Windows). Usar para registro de impresoras, impresión de tickets/etiquetas, o cambios en print-service/printer-client. NUNCA reinicia ed-print en producción sin confirmación explícita."
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+model: haiku
 ---
 
 # Agente Print Stack — ED Indumentaria

@@ -4,7 +4,9 @@ import type { ReactNode } from 'react';
 export type FiltroTexto = { tipo: 'texto'; valor: string };
 export type FiltroRango = { tipo: 'rango'; desde: number | null; hasta: number | null };
 export type FiltroSeleccion = { tipo: 'seleccion'; ids: number[] };
-export type FiltroColumna = FiltroTexto | FiltroRango | FiltroSeleccion;
+/** Rango de fechas en formato ISO (yyyy-mm-dd), como lo entrega <input type="date">. */
+export type FiltroFecha = { tipo: 'fecha'; desde: string | null; hasta: string | null };
+export type FiltroColumna = FiltroTexto | FiltroRango | FiltroSeleccion | FiltroFecha;
 
 export type OpcionFiltro = { id: number; nombre: string };
 
@@ -19,7 +21,8 @@ export type FiltroDefSeleccion<T> = {
   getValores: (item: T) => OpcionFiltro[];
   opcionesEstaticas?: OpcionFiltro[];
 };
-export type FiltroDef<T> = FiltroDefTexto | FiltroDefRango<T> | FiltroDefSeleccion<T>;
+export type FiltroDefFecha<T> = { tipo: 'fecha'; getValor: (item: T) => string | null };
+export type FiltroDef<T> = FiltroDefTexto | FiltroDefRango<T> | FiltroDefSeleccion<T> | FiltroDefFecha<T>;
 
 // --- Definicion de una columna del DataGrid ---
 export type ColumnaTabla<T> = {

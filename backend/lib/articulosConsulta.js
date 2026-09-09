@@ -15,9 +15,18 @@
 // como parametros. Lo unico que se interpola como SQL literal (Prisma.raw) son
 // palabras validadas contra una lista blanca (ASC/DESC).
 const { Prisma } = require('../generated/prisma/client');
-const { HttpError } = require('./http');
 const { parseIdOpcional } = require('./validaciones');
 const { IDS_GRUPOS_DE_CLIENTES } = require('../constants/agrupaciones');
+const {
+  SIEMPRE,
+  NUNCA,
+  contiene,
+  rango,
+  error400,
+  parseEntero,
+  parseFiltros,
+  parseOrden,
+} = require('./consultaSql');
 
 const TAMANO_PAGINA_DEFECTO = 30;
 const TAMANO_PAGINA_MAX = 200;
@@ -77,18 +86,8 @@ const TEXTO_SUBGRUPO = Prisma.sql`COALESCE(${nombreDeSubgrupo}, 'Sin Subgrupo')`
 // ============================================================
 //  BUSQUEDA DE TEXTO
 // ============================================================
-
-// Espejo de normalizarBusqueda() de frontend/src/utils/texto.tsx: minusculas y
-// sin espacios, para que "camisa roja" encuentre "CamisaRoja".
-const normalizar = (texto) => texto.toLowerCase().replace(/\s+/g, '');
-const normalizarSql = (expr) => Prisma.sql`regexp_replace(lower(${expr}), '[[:space:]]', '', 'g')`;
-
-// El termino del usuario es literal: % y _ se escapan para que no funcionen
-// como comodines de LIKE (String.includes() tampoco los interpreta).
-const patronLike = (termino) => `%${normalizar(termino).replace(/([\\%_])/g, '\\$1')}%`;
-
-const contiene = (expr, termino) =>
-  Prisma.sql`${normalizarSql(expr)} LIKE ${patronLike(termino)} ESCAPE '\\'`;
+// normalizar/contiene (regexp_replace + LIKE escapado) viven en consultaSql.js,
+// compartidos con remitosConsulta.js.
 
 // La busqueda global recorre las columnas de texto: codigo, los tres campos
 // libres, la vigencia y los nombres de las relaciones. No incluye las columnas
@@ -114,16 +113,7 @@ const condicionBusqueda = (termino) =>
 //  FILTROS POR COLUMNA
 // ============================================================
 
-const SIEMPRE = Prisma.sql`TRUE`;
-const NUNCA = Prisma.sql`FALSE`;
-
-// Rango sobre una expresion numerica: los dos extremos son opcionales.
-const rango = (expr, { desde, hasta }) => {
-  const partes = [];
-  if (desde !== null) partes.push(Prisma.sql`${expr} >= ${desde}::numeric`);
-  if (hasta !== null) partes.push(Prisma.sql`${expr} <= ${hasta}::numeric`);
-  return partes.length === 0 ? SIEMPRE : Prisma.sql`(${Prisma.join(partes, ' AND ')})`;
-};
+// SIEMPRE/NUNCA/rango viven en consultaSql.js, compartidos con remitosConsulta.js.
 
 // Seleccion sobre una FK: los ids elegidos, mas la condicion de "Sin asignar"
 // cuando esa opcion (id -1) esta tildada. Sin ningun id no pasa ninguna fila,
@@ -296,81 +286,10 @@ const construirWhere = (consulta, { excluirFiltro = null } = {}) => {
 //  PARSEO DE LA QUERY
 // ============================================================
 
-const error400 = (message) => new HttpError(400, { message });
-
-const parseEntero = (valor, mensaje, { minimo = 1 } = {}) => {
-  const numero = Number(valor);
-  if (!Number.isInteger(numero) || numero < minimo) throw error400(mensaje);
-  return numero;
-};
-
-const parseListaDeIds = (valor, mensaje) => {
-  if (!Array.isArray(valor) || valor.some((id) => !Number.isInteger(id))) throw error400(mensaje);
-  return valor;
-};
-
-const parseNumeroONulo = (valor, mensaje) => {
-  if (valor === null || valor === undefined) return null;
-  if (typeof valor !== 'number' || !Number.isFinite(valor)) throw error400(mensaje);
-  return valor;
-};
-
-// Los filtros por columna viajan como JSON en la query: el mismo objeto
-// Record<filtroKey, FiltroColumna> que mantiene el hook del frontend.
-const parseFiltros = (valor) => {
-  if (valor === undefined || valor === '') return {};
-
-  let crudo;
-  try {
-    crudo = JSON.parse(valor);
-  } catch {
-    throw error400('El parametro "filtros" debe ser un JSON valido.');
-  }
-  if (crudo === null || typeof crudo !== 'object' || Array.isArray(crudo)) {
-    throw error400('El parametro "filtros" debe ser un objeto.');
-  }
-
-  const filtros = {};
-  for (const [key, filtro] of Object.entries(crudo)) {
-    const tipoEsperado = TIPOS_DE_FILTRO[key];
-    if (!tipoEsperado) throw error400(`El filtro "${key}" no existe.`);
-    if (filtro === null || typeof filtro !== 'object' || filtro.tipo !== tipoEsperado) {
-      throw error400(`El filtro "${key}" debe ser de tipo "${tipoEsperado}".`);
-    }
-
-    if (tipoEsperado === 'texto') {
-      if (typeof filtro.valor !== 'string') throw error400(`El filtro "${key}" debe traer un texto.`);
-      const valorTexto = filtro.valor.trim();
-      if (valorTexto === '') continue;
-      filtros[key] = { tipo: 'texto', valor: valorTexto };
-    } else if (tipoEsperado === 'rango') {
-      const desde = parseNumeroONulo(filtro.desde, `El filtro "${key}" debe traer numeros.`);
-      const hasta = parseNumeroONulo(filtro.hasta, `El filtro "${key}" debe traer numeros.`);
-      if (desde === null && hasta === null) continue;
-      filtros[key] = { tipo: 'rango', desde, hasta };
-    } else {
-      filtros[key] = {
-        tipo: 'seleccion',
-        ids: parseListaDeIds(filtro.ids, `El filtro "${key}" debe traer una lista de ids.`),
-      };
-    }
-  }
-  return filtros;
-};
-
-// El orden viaja compacto: "codigo:asc,precio:desc", en orden de prioridad.
-const parseOrden = (valor) => {
-  if (valor === undefined || valor === '') return [];
-
-  return valor.split(',').map((criterio) => {
-    const [key, direccion] = criterio.split(':');
-    if (!EXPRESIONES_ORDEN[key]) throw error400(`No se puede ordenar por "${key}".`);
-    if (direccion !== 'asc' && direccion !== 'desc') {
-      throw error400(`La direccion de orden de "${key}" debe ser "asc" o "desc".`);
-    }
-    return { key, direccion };
-  });
-};
+// error400/parseEntero/parseFiltros/parseOrden viven en consultaSql.js,
+// compartidos con remitosConsulta.js: el shape de "filtros"/"orden" en la
+// query string es el mismo para cualquier tabla paginada en la base, lo unico
+// que cambia por modulo es la lista blanca (TIPOS_DE_FILTRO/EXPRESIONES_ORDEN).
 
 /** Lee y valida todos los parametros de la consulta de articulos. */
 const parsearConsultaArticulos = (query) => ({
@@ -387,8 +306,8 @@ const parsearConsultaArticulos = (query) => ({
   // clubes"); si viaja junto con id_cliente, el cliente puntual manda.
   idAgrupacion: parseIdOpcional(query.id_agrupacion, 'El id de la agrupación debe ser un numero.'),
   idLinea: parseIdOpcional(query.id_linea, 'El id de la linea debe ser un numero.'),
-  filtros: parseFiltros(query.filtros),
-  orden: parseOrden(query.orden),
+  filtros: parseFiltros(query.filtros, TIPOS_DE_FILTRO),
+  orden: parseOrden(query.orden, EXPRESIONES_ORDEN),
 });
 
 // ============================================================

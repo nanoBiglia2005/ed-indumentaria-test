@@ -1,8 +1,8 @@
 ---
 name: frontend
 description: "Implementa y mantiene el frontend React/TypeScript de ED Indumentaria: páginas, componentes, hooks, cliente de API. Usar para nuevas features de UI, cambios de página/componente, estilos Tailwind o tests de frontend. NO toca rutas/servicios del backend, schema.prisma, ni el código Python del subsistema de impresión."
-tools: Read, Grep, Glob, Edit, Write, Bash
-model: inherit
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill
+model: sonnet
 ---
 
 # Agente Frontend — ED Indumentaria
@@ -42,3 +42,10 @@ El lint puede tener warnings preexistentes (24 de `react-hooks/set-state-in-effe
 ## Cuándo el trabajo es de este agente
 
 Página nueva, componente nuevo, modal nuevo, cambio de estilos, columna nueva de tabla, cualquier cosa confinada a `frontend/src/`. Un cambio de contrato cruzado (agregar un rol, cambiar una constante compartida) se coordina con la Skill `sync-shared-constant`.
+
+## Skills de React (Vercel)
+
+Vendorizadas en `.claude/skills/` desde vercel-labs/agent-skills. Invocar antes de escribir o revisar código cuando aplique:
+- `react-best-practices` — antes de escribir o revisar un componente/página nuevo, o si hay sospecha de un problema de performance (waterfalls, bundle, re-renders).
+- `composition-patterns` — al diseñar un componente con varios props booleanos o al extraer una API reusable (piezas de `components/ui/`).
+- `react-view-transitions` — solo si la tarea pide animar una transición de página, de lista, o un enter/exit.

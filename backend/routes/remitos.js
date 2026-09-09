@@ -1,4 +1,5 @@
 const express = require('express');
+const { Prisma } = require('../generated/prisma/client');
 const prisma = require('../db');
 const { asyncHandler, HttpError } = require('../lib/http');
 const { parseId } = require('../lib/validaciones');
@@ -22,6 +23,7 @@ const { parsearPagos, registrarCobro } = require('../services/pagosRemito');
 const { parsearDatosCliente, obtenerCliente } = require('../services/clientesFinales');
 const { construirPayloadTicket, enviarTrabajoDeImpresion } = require('../services/impresion');
 const { resolverDestinoParaSesion } = require('../services/impresoras');
+const { parsearConsultaRemitos, construirWhere, construirOrderBy } = require('../lib/remitosConsulta');
 
 const router = express.Router();
 
@@ -50,12 +52,44 @@ const imprimirTicketDeRemito = async ({ session, idImpresoraPedida, items, metod
   }
 };
 
-// Todo remito viaja con `totales_por_metodo`: cuanto costaria cobrarlo con cada
-// metodo de pago. NO esta guardado en la base, se calcula con el recargo
-// vigente a partir de los precios congelados de sus lineas.
-const responderRemitos = async (res, remitos) => {
+/**
+ * Una pagina de remitos + el total que coincide con los filtros. Mismo
+ * mecanismo que GET /api/articulos (ver lib/remitosConsulta.js y
+ * lib/articulosConsulta.js): primero solo los `id_remito` de la pagina (y el
+ * total), despues las filas completas con remitosInclude.
+ *
+ * `estadoFijo` es la condicion de estado que decide cada ruta (Historial /
+ * Pendientes) — no sale de la query del usuario.
+ */
+const responderPaginaDeRemitos = async (req, res, { estadoFijo }) => {
+  const consulta = parsearConsultaRemitos(req.query);
+  const where = construirWhere({ estadoFijo, filtros: consulta.filtros });
+  const orderBy = construirOrderBy(consulta.orden);
+  const offset = (consulta.pagina - 1) * consulta.tamano;
+
+  const [filas, [{ total }]] = await prisma.$transaction([
+    prisma.$queryRaw`
+      SELECT r.id_remito FROM "REMITOS" r
+        WHERE ${where}
+        ORDER BY ${orderBy}
+        LIMIT ${consulta.tamano}::int OFFSET ${offset}::int`,
+    prisma.$queryRaw`SELECT count(*)::int AS total FROM "REMITOS" r WHERE ${where}`,
+  ]);
+
+  const ids = filas.map((fila) => fila.id_remito);
+  const remitos = await prisma.REMITOS.findMany({
+    where: { id_remito: { in: ids } },
+    include: remitosInclude,
+  });
+
+  // findMany con `in` no respeta el orden pedido: se reordena por los ids.
+  const porId = new Map(remitos.map((remito) => [remito.id_remito, remito]));
   const metodos = await listarMetodosDePago();
-  res.status(200).json(remitos.map((remito) => remitoConTotales(remito, metodos)));
+
+  res.status(200).json({
+    remitos: ids.map((id) => remitoConTotales(porId.get(id), metodos)),
+    total,
+  });
 };
 
 // Historial: todo MENOS los pendientes de cobro, que viven en la pagina de
@@ -64,12 +98,9 @@ router.get(
   '/',
   requireRol(...ROLES_HISTORIAL),
   asyncHandler(async (req, res) => {
-    const remitos = await prisma.REMITOS.findMany({
-      where: { NOT: { id_estado: ESTADO_CONFIRMADO } },
-      include: remitosInclude,
-      orderBy: { id_remito: 'desc' },
+    await responderPaginaDeRemitos(req, res, {
+      estadoFijo: Prisma.sql`r.id_estado != ${ESTADO_CONFIRMADO}`,
     });
-    await responderRemitos(res, remitos);
   }, 'Error al obtener los remitos.')
 );
 
@@ -77,12 +108,9 @@ router.get(
 router.get(
   '/pendientes',
   asyncHandler(async (req, res) => {
-    const remitos = await prisma.REMITOS.findMany({
-      where: { id_estado: ESTADO_CONFIRMADO },
-      include: remitosInclude,
-      orderBy: { id_remito: 'desc' },
+    await responderPaginaDeRemitos(req, res, {
+      estadoFijo: Prisma.sql`r.id_estado = ${ESTADO_CONFIRMADO}`,
     });
-    await responderRemitos(res, remitos);
   }, 'Error al obtener los remitos pendientes.')
 );
 
