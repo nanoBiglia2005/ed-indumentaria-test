@@ -6,17 +6,16 @@
 // pero se completan igual porque ColumnaTabla<T> los exige y documentan que
 // muestra cada campo.
 import type { RemitoConDetalles } from '@backend/types';
-import {
-  ESTADO_CONFIRMADO,
-  ESTADO_FACTURADO,
-  ESTADO_ANULADO,
-  ESTADO_DEVUELTO,
-} from '@backend/types';
+import { ESTADO_FACTURADO, ESTADO_ANULADO, ESTADO_DEVUELTO } from '@backend/types';
 import type { ColumnaTabla, OpcionFiltro } from '@/components/tabla/tipos';
 import { formatearFecha, formatearPesos } from '@/utils/formato';
 
+// Sin Confirmada: CAMPO_ESTADO solo se usa en camposHistorial (mas abajo), y
+// esa pagina fija `estadoFijo: r.id_estado != ESTADO_CONFIRMADO` en el
+// backend (routes/remitos.js) — un remito Confirmado no puede existir ahi por
+// construccion. Ofrecerla como opcion de filtro sería un checkbox que siempre
+// da 0 resultados.
 const OPCIONES_ESTADO: OpcionFiltro[] = [
-  { id: ESTADO_CONFIRMADO, nombre: 'Confirmada' },
   { id: ESTADO_FACTURADO, nombre: 'Paga' },
   { id: ESTADO_ANULADO, nombre: 'Anulada' },
   { id: ESTADO_DEVUELTO, nombre: 'Devuelta' },
@@ -51,7 +50,13 @@ const CAMPO_CLIENTE: ColumnaTabla<RemitoConDetalles> = {
   render: nombreCliente,
   width: 160,
   filtroKey: 'cliente',
-  filtro: { tipo: 'texto' },
+  filtro: {
+    tipo: 'seleccion',
+    // Las opciones reales las calcula el backend (GET /api/remitos/opciones,
+    // ver useOpcionesDeFiltro): no hay lista fija como en Estado. getValores
+    // solo lo exige el tipo de FiltroDefSeleccion; el motor no lo usa aca.
+    getValores: (r) => (r.CLIENTES ? [{ id: r.CLIENTES.id_cliente, nombre: nombreCliente(r) }] : []),
+  },
 };
 
 const CAMPO_ESTADO: ColumnaTabla<RemitoConDetalles> = {

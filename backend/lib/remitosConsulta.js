@@ -10,6 +10,8 @@ const {
   contiene,
   rango,
   rangoFecha,
+  seleccionFk,
+  error400,
   parseEntero,
   parseFiltros,
   parseOrden,
@@ -22,7 +24,7 @@ const TAMANO_PAGINA_MAX = 200;
 // frontend/src/features/ventas/campos.ts, que declara las mismas claves).
 const TIPOS_DE_FILTRO = {
   codigo: 'texto',
-  cliente: 'texto',
+  cliente: 'seleccion',
   estado: 'seleccion',
   fecha_emision: 'fecha',
   fecha_creacion: 'fecha',
@@ -54,7 +56,9 @@ const MONTO = Prisma.sql`COALESCE(r.total_final, r.total_efectivo)`;
 
 const TRADUCTORES = {
   codigo: (f) => contiene(TEXTO_CODIGO, f.valor),
-  cliente: (f) => contiene(TEXTO_CLIENTE, f.valor),
+  // Selecciona por CLIENTES.id_cliente (nullable en REMITOS): "Sin asignar" es
+  // un remito sin cliente, igual patron que colegios/linea en articulos.
+  cliente: (f) => seleccionFk(Prisma.sql`r.id_cliente`, f.ids, Prisma.sql`r.id_cliente IS NULL`),
   // Los 4 estados (constants/ventas.js) siempre existen: no hace falta el
   // manejo de "sin asignar" que tiene seleccionFk en articulos.
   estado: (f) =>
@@ -99,11 +103,14 @@ const construirOrderBy = (orden) => {
  * WHERE completo. `estadoFijo` es la condicion de base que fija cada ruta
  * (excluir CONFIRMADO en el historial, exigirlo en pendientes) — no sale de la
  * query del usuario, igual que `soloVigentes`/`exigeCliente` en
- * articulosConsulta.js.
+ * articulosConsulta.js. `excluirFiltro` omite el filtro de una columna: es lo
+ * que necesita el calculo de opciones de "cliente", que se hace sobre las
+ * filas que pasan todos los DEMAS filtros.
  */
-const construirWhere = ({ estadoFijo, filtros }) => {
+const construirWhere = ({ estadoFijo, filtros }, { excluirFiltro = null } = {}) => {
   const partes = [estadoFijo];
   for (const [key, filtro] of Object.entries(filtros)) {
+    if (key === excluirFiltro) continue;
     partes.push(TRADUCTORES[key](filtro));
   }
   return Prisma.join(partes, ' AND ');
@@ -120,9 +127,34 @@ const parsearConsultaRemitos = (query) => ({
   orden: parseOrden(query.orden, EXPRESIONES_ORDEN),
 });
 
+// ============================================================
+//  OPCIONES DEL FILTRO DE SELECCION "cliente"
+// ============================================================
+// Mismo patron que OPCIONES_POR_COLUMNA en articulosConsulta.js: los clientes
+// presentes en el conjunto ya filtrado (sin el propio filtro de cliente), mas
+// "Sin asignar" si hay remitos sin cliente. "estado" no esta aca: sus opciones
+// son fijas en el frontend (ver campos.ts).
+const OPCIONES_POR_COLUMNA = {
+  cliente: {
+    opciones: (where) => Prisma.sql`
+      SELECT DISTINCT c.id_cliente AS id, (c.nombre || ' ' || COALESCE(c.apellido, '')) AS nombre
+        FROM "REMITOS" r JOIN "CLIENTES" c ON c.id_cliente = r.id_cliente
+        WHERE ${where}
+        ORDER BY nombre ASC`,
+    sinAsignar: Prisma.sql`r.id_cliente IS NULL`,
+  },
+};
+
+const parseColumnaDeOpciones = (valor) => {
+  const definicion = OPCIONES_POR_COLUMNA[valor];
+  if (!definicion) throw error400(`La columna "${valor}" no tiene opciones de filtro.`);
+  return definicion;
+};
+
 module.exports = {
   TAMANO_PAGINA_DEFECTO,
   parsearConsultaRemitos,
+  parseColumnaDeOpciones,
   construirWhere,
   construirOrderBy,
 };

@@ -1,7 +1,7 @@
 ---
 name: backend
 description: "Implementa y mantiene el backend Express/Prisma de ED Indumentaria: rutas, servicios, lib/, schema.prisma y migraciones. Usar para nuevos endpoints, lógica de negocio en services/, cambios de esquema o cobertura de tests del backend. NO toca UI del frontend, el subsistema de impresión (print-service/printer-client) ni los workflows de CI/CD."
-tools: Read, Grep, Glob, Edit, Write, Bash
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill
 model: sonnet
 ---
 
@@ -43,3 +43,7 @@ Si el cambio tocó el schema: `npx prisma migrate status` tiene que decir "up to
 ## Cuándo el trabajo es de este agente
 
 Ruta nueva, servicio nuevo, migración nueva, cambio de validación en `lib/`, cualquier cosa que no necesite que quien la hace vea al mismo tiempo el frontend o la impresión. Un cambio que cruza stacks (permiso nuevo, contrato nuevo) se coordina con la Skill `sync-shared-constant`, no se asume que "backend" resuelve todo solo.
+
+## Skill de descubrimiento de skills (Vercel)
+
+Vendorizada en `.claude/skills/find-skills/` desde vercel-labs/skills. Invocarla cuando haga falta una capacidad que no está cubierta por ninguna skill ya vendorizada en este repo, antes de resolverlo a mano desde cero. Instalar una skill (`npx skills add ...`) baja y ejecuta contenido de un repositorio de terceros — es una acción de red con blast radius, no un diagnóstico de solo lectura. La skill upstream sugiere `-g -y` para saltar la confirmación (su Paso 6, "Offer to Install"): eso no aplica acá. Cualquier instalación se anuncia con el paquete exacto (`owner/repo@skill`) y espera el OK explícito del usuario antes de correrse, igual que cualquier otra dependencia nueva.

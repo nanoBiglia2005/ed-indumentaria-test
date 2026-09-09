@@ -9,6 +9,8 @@ import type { ParamsRemitos } from '@/api/remitos';
 import ConfirmarAccionRemitoModal from '@/features/ventas/modales/ConfirmarAccionRemitoModal';
 import { ACCION_ANULAR } from '@/features/ventas/modales/accionesDeRemito';
 import ListaDeRemitos from '@/features/ventas/ListaDeRemitos';
+import { useOpcionesDeFiltro } from '@/features/ventas/useOpcionesDeFiltro';
+import type { OpcionesCargadas } from '@/features/ventas/useOpcionesDeFiltro';
 import { camposVentasPendientes } from '@/features/ventas/campos';
 import MetodoPagoModal from '@/features/ventas/modales/MetodoPagoModal';
 import NuevaVentaModal from '@/features/ventas/modales/NuevaVentaModal';
@@ -34,15 +36,22 @@ function VentasPage() {
   const [error, setError] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
 
+  // Opciones del filtro de seleccion recien abierto (hoy solo "Cliente"): el
+  // estado vive aca, ANTES de useTablaServidor, porque este lo necesita de
+  // entrada — ver el comentario de cabecera de useOpcionesDeFiltro.
+  const [opciones, setOpciones] = useState<OpcionesCargadas | null>(null);
+
   // Estado de filtros por columna + multi-orden (sin filtrar en memoria):
   // Ventas no ofrece Estado ni Fecha de emision (ver campos.ts).
-  const tabla = useTablaServidor({ columnas: camposVentasPendientes, opciones: [] });
+  const tabla = useTablaServidor({ columnas: camposVentasPendientes, opciones: opciones?.valores ?? [] });
 
   // Cambia de identidad solo cuando cambia algun filtro o el orden.
   const params = useMemo<ParamsRemitos>(
     () => ({ filtros: tabla.filtrosColumna, orden: tabla.ordenColumnas }),
     [tabla.filtrosColumna, tabla.ordenColumnas]
   );
+
+  const opcionesListas = useOpcionesDeFiltro('pendientes', params, tabla.columnaAbierta, opciones, setOpciones);
 
   // Cualquier cambio de filtro/orden vuelve a la primera pagina.
   useResetAlCambiar(params, () => setPagina(1));
@@ -180,6 +189,7 @@ function VentasPage() {
           onClickOrdenar={tabla.handleClickOrdenar}
           columnaAbierta={tabla.columnaAbierta}
           opcionesFiltroAbierto={tabla.opcionesFiltroAbierto}
+          opcionesListas={opcionesListas}
           onCerrarFiltro={() => tabla.setColumnaFiltroAbierta(null)}
           onAplicarFiltro={tabla.handleAplicarFiltro}
         />

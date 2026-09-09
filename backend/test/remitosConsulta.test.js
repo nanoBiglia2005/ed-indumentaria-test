@@ -39,13 +39,30 @@ test('el WHERE siempre incluye el estado fijo de la ruta, aunque no haya filtros
   assert.deepEqual(resultado.values, []);
 });
 
-test('filtro de texto en codigo/cliente normaliza y escapa como LIKE', () => {
-  const resultado = where({ cliente: { tipo: 'texto', valor: 'Juan Pérez' } });
+test('filtro de texto en codigo normaliza y escapa como LIKE', () => {
+  const resultado = where({ codigo: { tipo: 'texto', valor: 'Juan Pérez' } });
   assert.ok(resultado.sql.includes('regexp_replace(lower('));
   assert.ok(resultado.sql.includes(`LIKE ? ESCAPE '\\'`));
   assert.equal(resultado.values.length, 1);
   // Sin mayusculas ni espacios, y comodines de LIKE escapados.
   assert.equal(resultado.values[0], '%juanpérez%');
+});
+
+test('filtro de cliente (seleccion) arma un IN sobre id_cliente', () => {
+  const resultado = where({ cliente: { tipo: 'seleccion', ids: [10, 20] } });
+  assert.match(resultado.sql, /r\.id_cliente IN \(\?,\?\)/);
+  assert.deepEqual(resultado.values, [10, 20]);
+});
+
+test('filtro de cliente con "Sin asignar" (-1) tildado agrega la condicion IS NULL', () => {
+  const resultado = where({ cliente: { tipo: 'seleccion', ids: [-1] } });
+  assert.match(resultado.sql, /r\.id_cliente IS NULL/);
+  assert.doesNotMatch(resultado.sql, /IN \(/);
+});
+
+test('filtro de cliente sin ningun id elegido no deja pasar ninguna fila', () => {
+  const resultado = where({ cliente: { tipo: 'seleccion', ids: [] } });
+  assert.match(resultado.sql, /FALSE/);
 });
 
 test('filtro de rango sobre "total" usa COALESCE(total_final, total_efectivo)', () => {
@@ -75,12 +92,12 @@ test('filtro de estado sin ningun id elegido no deja pasar ninguna fila', () => 
 
 test('construirOrderBy sin criterios devuelve solo el desempate por id', () => {
   const resultado = construirOrderBy([]);
-  assert.equal(resultado.sql, 'r.id_remito ASC');
+  assert.equal(resultado.sql, 'r.id_remito DESC');
 });
 
 test('construirOrderBy por codigo ordena por el par NUMERICO (cod_mes, cod_remito_final), no el texto', () => {
   const resultado = construirOrderBy([{ key: 'codigo', direccion: 'asc' }]);
-  assert.equal(resultado.sql, 'r.cod_mes ASC NULLS LAST, r.cod_remito_final ASC NULLS LAST, r.id_remito ASC');
+  assert.equal(resultado.sql, 'r.cod_mes ASC NULLS LAST, r.cod_remito_final ASC NULLS LAST, r.id_remito DESC');
 });
 
 test('construirOrderBy apila varios criterios en orden de prioridad y siempre cierra con el desempate', () => {
@@ -90,6 +107,6 @@ test('construirOrderBy apila varios criterios en orden de prioridad y siempre ci
   ]);
   assert.equal(
     resultado.sql,
-    'COALESCE(r.total_final, r.total_efectivo) DESC NULLS LAST, r.fecha_de_creacion ASC NULLS LAST, r.id_remito ASC'
+    'COALESCE(r.total_final, r.total_efectivo) DESC NULLS LAST, r.fecha_de_creacion ASC NULLS LAST, r.id_remito DESC'
   );
 });

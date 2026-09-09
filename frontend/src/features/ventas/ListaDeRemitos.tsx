@@ -47,6 +47,8 @@ interface ListaDeRemitosProps {
   onClickOrdenar: (columna: ColumnaTabla<RemitoConDetalles>, event: React.MouseEvent) => void;
   columnaAbierta: ColumnaFiltrable<RemitoConDetalles> | null;
   opcionesFiltroAbierto: OpcionFiltro[];
+  /** Ver el mismo prop en FiltrosVentasToolbar (viene de useOpcionesDeFiltro). */
+  opcionesListas: boolean;
   onCerrarFiltro: () => void;
   onAplicarFiltro: (filtro: FiltroColumna | null) => void;
 }
@@ -68,6 +70,7 @@ export default function ListaDeRemitos({
   onClickOrdenar,
   columnaAbierta,
   opcionesFiltroAbierto,
+  opcionesListas,
   onCerrarFiltro,
   onAplicarFiltro,
 }: ListaDeRemitosProps) {
@@ -109,8 +112,8 @@ export default function ListaDeRemitos({
   const claseEstado = anchoCompleto ? ' w-full' : '';
 
   return (
-    <div className='border-1 px-3 py-2 rounded-xl border-black/20 w-full min-h-0'>
-      <div className={anchoCompleto ? 'w-full' : undefined}>
+    <div className='border-1 px-3 pb-2 rounded-xl border-black/20 w-full flex-1 min-h-0 overflow-y-auto'>
+      <div className={`sticky top-0 z-10 bg-white pt-2 pb-1${anchoCompleto ? ' w-full' : ''}`}>
         <FiltrosVentasToolbar
           campos={campos}
           anchos={anchos}
@@ -120,6 +123,7 @@ export default function ListaDeRemitos({
           onClickOrdenar={onClickOrdenar}
           columnaAbierta={columnaAbierta}
           opcionesFiltroAbierto={opcionesFiltroAbierto}
+          opcionesListas={opcionesListas}
           onCerrarFiltro={onCerrarFiltro}
           onAplicarFiltro={onAplicarFiltro}
         />

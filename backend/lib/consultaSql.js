@@ -10,6 +10,27 @@ const { HttpError } = require('./http');
 const SIEMPRE = Prisma.sql`TRUE`;
 const NUNCA = Prisma.sql`FALSE`;
 
+// Espejo de SIN_ASIGNAR_ID de frontend/src/components/tabla/tipos.ts.
+const SIN_ASIGNAR_ID = -1;
+
+/**
+ * Seleccion sobre una FK nullable: los ids elegidos, mas la condicion de "Sin
+ * asignar" cuando esa opcion (id -1) esta tildada. Sin ningun id no pasa
+ * ninguna fila.
+ *
+ * `idFicticio` dice si el -1 es SOLO la opcion "Sin asignar" (no existe una fila
+ * real con ese id) o si ademas es un id real que hay que dejar en el IN (ver
+ * el caso de "grupos" en articulosConsulta.js, donde -1 tambien es el id del
+ * grupo real "No Asignado").
+ */
+const seleccionFk = (columna, ids, sinAsignar, { idFicticio = true } = {}) => {
+  const reales = idFicticio ? ids.filter((id) => id !== SIN_ASIGNAR_ID) : ids;
+  const partes = [];
+  if (reales.length > 0) partes.push(Prisma.sql`${columna} IN (${Prisma.join(reales)})`);
+  if (ids.includes(SIN_ASIGNAR_ID)) partes.push(sinAsignar);
+  return partes.length === 0 ? NUNCA : Prisma.sql`(${Prisma.join(partes, ' OR ')})`;
+};
+
 // Espejo de normalizarBusqueda() de frontend/src/utils/texto.tsx: minusculas y
 // sin espacios, para que "camisa roja" encuentre "CamisaRoja".
 const normalizar = (texto) => texto.toLowerCase().replace(/\s+/g, '');
@@ -143,10 +164,12 @@ const parseOrden = (valor, expresionesOrden) => {
 module.exports = {
   SIEMPRE,
   NUNCA,
+  SIN_ASIGNAR_ID,
   normalizar,
   contiene,
   rango,
   rangoFecha,
+  seleccionFk,
   error400,
   parseEntero,
   parseListaDeIds,

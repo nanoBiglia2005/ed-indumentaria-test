@@ -23,7 +23,12 @@ const { parsearPagos, registrarCobro } = require('../services/pagosRemito');
 const { parsearDatosCliente, obtenerCliente } = require('../services/clientesFinales');
 const { construirPayloadTicket, enviarTrabajoDeImpresion } = require('../services/impresion');
 const { resolverDestinoParaSesion } = require('../services/impresoras');
-const { parsearConsultaRemitos, construirWhere, construirOrderBy } = require('../lib/remitosConsulta');
+const {
+  parsearConsultaRemitos,
+  parseColumnaDeOpciones,
+  construirWhere,
+  construirOrderBy,
+} = require('../lib/remitosConsulta');
 
 const router = express.Router();
 
@@ -104,6 +109,35 @@ router.get(
   }, 'Error al obtener los remitos.')
 );
 
+/**
+ * Opciones del filtro de seleccion "cliente": los clientes presentes en los
+ * remitos que pasan todos los DEMAS filtros, mas "Sin asignar" si hay alguno
+ * sin cliente. Mismo mecanismo que GET /api/articulos/opciones.
+ */
+const responderOpcionesDeRemitos = async (req, res, { estadoFijo }) => {
+  const columna = req.query.columna;
+  const definicion = parseColumnaDeOpciones(columna);
+  const consulta = parsearConsultaRemitos(req.query);
+  const where = construirWhere({ estadoFijo, filtros: consulta.filtros }, { excluirFiltro: columna });
+
+  const [opciones, [{ existe }]] = await prisma.$transaction([
+    prisma.$queryRaw(definicion.opciones(where)),
+    prisma.$queryRaw`SELECT EXISTS (SELECT 1 FROM "REMITOS" r WHERE ${where} AND ${definicion.sinAsignar}) AS existe`,
+  ]);
+
+  res.status(200).json({ opciones, haySinAsignar: existe });
+};
+
+router.get(
+  '/opciones',
+  requireRol(...ROLES_HISTORIAL),
+  asyncHandler(async (req, res) => {
+    await responderOpcionesDeRemitos(req, res, {
+      estadoFijo: Prisma.sql`r.id_estado != ${ESTADO_CONFIRMADO}`,
+    });
+  }, 'Error al obtener las opciones del filtro.')
+);
+
 // Remitos confirmados que todavia no se cobraron.
 router.get(
   '/pendientes',
@@ -112,6 +146,15 @@ router.get(
       estadoFijo: Prisma.sql`r.id_estado = ${ESTADO_CONFIRMADO}`,
     });
   }, 'Error al obtener los remitos pendientes.')
+);
+
+router.get(
+  '/pendientes/opciones',
+  asyncHandler(async (req, res) => {
+    await responderOpcionesDeRemitos(req, res, {
+      estadoFijo: Prisma.sql`r.id_estado = ${ESTADO_CONFIRMADO}`,
+    });
+  }, 'Error al obtener las opciones del filtro.')
 );
 
 /**

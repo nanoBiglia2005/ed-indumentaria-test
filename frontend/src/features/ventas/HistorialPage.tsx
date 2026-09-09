@@ -3,10 +3,13 @@ import type { RemitoConDetalles } from '@backend/types';
 import { useNotificacion } from '@/hooks/useNotificacion';
 import { useResetAlCambiar } from '@/hooks/useResetAlCambiar';
 import { useTablaServidor } from '@/components/tabla/useTablaServidor';
+import { preset30Dias } from '@/components/tabla/presetsFecha';
 import Paginador from '@/components/tabla/Paginador';
 import { listarRemitosPagina } from '@/api/remitos';
 import type { ParamsRemitos } from '@/api/remitos';
 import ListaDeRemitos from '@/features/ventas/ListaDeRemitos';
+import { useOpcionesDeFiltro } from '@/features/ventas/useOpcionesDeFiltro';
+import type { OpcionesCargadas } from '@/features/ventas/useOpcionesDeFiltro';
 import { camposHistorial } from '@/features/ventas/campos';
 import ConfirmarAccionRemitoModal from '@/features/ventas/modales/ConfirmarAccionRemitoModal';
 import { ACCION_DEVOLVER } from '@/features/ventas/modales/accionesDeRemito';
@@ -33,16 +36,31 @@ function HistorialPage() {
   const [remitoADevolver, setRemitoADevolver] = useState<RemitoConDetalles | null>(null);
   const { notificacion, mostrar: mostrarNotificacion } = useNotificacion();
 
-  // Estado de filtros por columna + multi-orden (sin filtrar en memoria): el
-  // "Estado" es la unica columna de seleccion y tiene opciones fijas, asi que
-  // no hace falta pedirle opciones al backend (ver useTablaServidor).
-  const tabla = useTablaServidor({ columnas: camposHistorial, opciones: [] });
+  // Opciones del filtro de seleccion recien abierto (hoy solo "Cliente":
+  // "Estado" tiene opciones fijas, ver campos.ts). El estado vive aca, ANTES
+  // de useTablaServidor, porque este lo necesita de entrada — ver el
+  // comentario de cabecera de useOpcionesDeFiltro.
+  const [opciones, setOpciones] = useState<OpcionesCargadas | null>(null);
+
+  // Arranca acotado a los ultimos 30 dias por Fecha de Creacion (nunca es
+  // null, a diferencia de Fecha de Emision — ver ANCHOS_REMITO_CARD_POR_DEFECTO
+  // y el comentario del trigger en la migracion 0_init), el mismo rango que
+  // el preset "Últimos 30 días" del modal (ver presetsFecha.ts): el usuario lo
+  // puede ampliar o sacar como cualquier otro filtro, esto es solo el punto de
+  // partida al entrar a la pagina.
+  const tabla = useTablaServidor({
+    columnas: camposHistorial,
+    opciones: opciones?.valores ?? [],
+    filtrosIniciales: { fecha_creacion: { tipo: 'fecha', ...preset30Dias() } },
+  });
 
   // Cambia de identidad solo cuando cambia algun filtro o el orden.
   const params = useMemo<ParamsRemitos>(
     () => ({ filtros: tabla.filtrosColumna, orden: tabla.ordenColumnas }),
     [tabla.filtrosColumna, tabla.ordenColumnas]
   );
+
+  const opcionesListas = useOpcionesDeFiltro('historial', params, tabla.columnaAbierta, opciones, setOpciones);
 
   // Cualquier cambio de filtro/orden vuelve a la primera pagina.
   useResetAlCambiar(params, () => setPagina(1));
@@ -118,6 +136,7 @@ function HistorialPage() {
           onClickOrdenar={tabla.handleClickOrdenar}
           columnaAbierta={tabla.columnaAbierta}
           opcionesFiltroAbierto={tabla.opcionesFiltroAbierto}
+          opcionesListas={opcionesListas}
           onCerrarFiltro={() => tabla.setColumnaFiltroAbierta(null)}
           onAplicarFiltro={tabla.handleAplicarFiltro}
         />

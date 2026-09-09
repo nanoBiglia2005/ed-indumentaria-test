@@ -1,6 +1,7 @@
 import BotonFiltroVentas from './BotonFiltroVentas';
 import ColumnFilterModal from '@/components/tabla/ColumnFilterModal';
 import { esFiltrable } from '@/components/tabla/tipos';
+import { etiquetaDeFiltroFecha } from '@/components/tabla/presetsFecha';
 import type {
   ColumnaFiltrable,
   ColumnaTabla,
@@ -33,6 +34,13 @@ interface FiltrosVentasToolbarProps<T> {
   onClickOrdenar: (columna: ColumnaTabla<T>, event: React.MouseEvent) => void;
   columnaAbierta: ColumnaFiltrable<T> | null;
   opcionesFiltroAbierto: OpcionFiltro[];
+  /**
+   * false mientras se piden al backend las opciones de un filtro de seleccion
+   * recien abierto (ver useOpcionesDeFiltro): el modal no se abre todavia,
+   * para no mostrar por un instante las opciones de la consulta anterior.
+   * Siempre true para filtros con `opcionesEstaticas` (Estado).
+   */
+  opcionesListas: boolean;
   onCerrarFiltro: () => void;
   onAplicarFiltro: (filtro: FiltroColumna | null) => void;
 }
@@ -46,6 +54,7 @@ export default function FiltrosVentasToolbar<T>({
   onClickOrdenar,
   columnaAbierta,
   opcionesFiltroAbierto,
+  opcionesListas,
   onCerrarFiltro,
   onAplicarFiltro,
 }: FiltrosVentasToolbarProps<T>) {
@@ -56,10 +65,14 @@ export default function FiltrosVentasToolbar<T>({
           const filtroActivo = filtrosColumna[campo.filtroKey];
           const prioridadOrden = ordenColumnas.findIndex((c) => c.key === campo.filtroKey);
           const ordenActivo = prioridadOrden === -1 ? null : ordenColumnas[prioridadOrden].direccion;
+          // Un filtro de fecha activo muestra QUE se esta filtrando (el
+          // preset elegido, o el rango) en vez del nombre de la columna.
+          const texto = filtroActivo?.tipo === 'fecha' ? etiquetaDeFiltroFecha(filtroActivo) : undefined;
           return (
             <BotonFiltroVentas
               key={campo.header}
               columna={campo}
+              texto={texto}
               ancho={anchos[campo.filtroKey as keyof AnchosRemitoCard]}
               filtroActivo={Boolean(filtroActivo)}
               ordenActivo={ordenActivo}
@@ -73,7 +86,7 @@ export default function FiltrosVentasToolbar<T>({
       </div>
 
       <ColumnFilterModal
-        abierto={columnaAbierta !== null}
+        abierto={columnaAbierta !== null && opcionesListas}
         onCerrar={onCerrarFiltro}
         titulo={columnaAbierta?.header ?? ''}
         tipo={columnaAbierta?.filtro.tipo ?? null}

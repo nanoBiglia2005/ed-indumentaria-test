@@ -1,7 +1,15 @@
 import { request } from './cliente';
 import type { RemitoConDetalles, RemitoCreado } from '@backend/types';
-import type { CriterioOrden, FiltroColumna } from '@/components/tabla/tipos';
+import type { CriterioOrden, FiltroColumna, OpcionFiltro } from '@/components/tabla/tipos';
 import type { DatosClienteAPI } from './venta';
+
+/** Historial o Ventas pendientes: cada uno pega a un endpoint distinto. */
+export type TipoDeListaRemitos = 'historial' | 'pendientes';
+
+const RUTA_BASE: Record<TipoDeListaRemitos, string> = {
+  historial: '/api/remitos',
+  pendientes: '/api/remitos/pendientes',
+};
 
 // --- Listado paginado (Historial / Ventas pendientes) ---
 // Mismo mecanismo que api/articulos.ts: el backend resuelve filtros, orden y
@@ -40,6 +48,26 @@ export const listarRemitosPagina = (params: ParamsRemitos, pagina: number, taman
 /** Remitos confirmados que todavia no se cobraron. */
 export const listarRemitosPendientesPagina = (params: ParamsRemitos, pagina: number, tamano: number) =>
   request<RespuestaRemitos>(`/api/remitos/pendientes?${querystring(params, { pagina, tamano })}`);
+
+export interface RespuestaOpcionesRemitos {
+  opciones: OpcionFiltro[];
+  haySinAsignar: boolean;
+}
+
+/**
+ * Opciones de un filtro de seleccion (hoy solo "cliente"). El backend las
+ * calcula sobre los remitos que pasan todos los DEMAS filtros, ignorando el de
+ * esta misma columna — mismo patron que listarOpcionesColumna en
+ * api/articulos.ts.
+ */
+export const listarOpcionesDeRemitos = (
+  tipo: TipoDeListaRemitos,
+  params: ParamsRemitos,
+  columna: string
+) =>
+  request<RespuestaOpcionesRemitos>(
+    `${RUTA_BASE[tipo]}/opciones?columna=${encodeURIComponent(columna)}&${querystring(params)}`
+  );
 
 /**
  * Registra la venta como pendiente de cobro con el cliente asignado.

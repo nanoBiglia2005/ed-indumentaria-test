@@ -8,6 +8,7 @@ import type { ColumnaTabla } from '@/components/tabla/tipos';
 import BotonFiltroVentas from './BotonFiltroVentas';
 import { PALABRA_POR_ESTADO, ANCHOS_REMITO_CARD_POR_DEFECTO } from './estadosRemito';
 import type { AnchosRemitoCard } from './estadosRemito';
+import { ETIQUETA_FECHA_PEOR_CASO } from '@/components/tabla/presetsFecha';
 
 // Margen de seguridad sobre el ancho medido: cubre el redondeo a subpixel
 // entre la medicion (getBoundingClientRect) y el layout final.
@@ -70,11 +71,16 @@ export default function MedidorAnchosRemitoCard({ remitos, metodosConRecargo, ca
       return Math.max(...anchos);
     };
 
+    // Un mismo filtroKey puede aportar mas de un hijo (fecha mide el header Y
+    // el texto de filtro activo mas ancho posible — ver mas abajo): el ancho
+    // de la etiqueta es el MAXIMO entre todos, nunca el ultimo que se lea.
     const etiquetas: Record<string, number> = {};
     if (refEtiquetas.current) {
       Array.from(refEtiquetas.current.children).forEach((hijo) => {
         const key = (hijo as HTMLElement).dataset.filtroKey;
-        if (key) etiquetas[key] = hijo.getBoundingClientRect().width + MARGEN_PX;
+        if (!key) return;
+        const ancho = hijo.getBoundingClientRect().width + MARGEN_PX;
+        etiquetas[key] = Math.max(etiquetas[key] ?? 0, ancho);
       });
     }
 
@@ -206,6 +212,31 @@ export default function MedidorAnchosRemitoCard({ remitos, metodosConRecargo, ca
             />
           </div>
         ))}
+
+        {/*
+          Los campos de fecha, ademas del header, pueden mostrar el rango
+          elegido en vez del nombre (ver FiltrosVentasToolbar/BotonFiltroVentas):
+          "31/12/25 - 31/12/25" es mas ancho que "Fecha de Emisión", asi que
+          hay que medir tambien ESE texto — si no, el dia que alguien elija un
+          rango personalizado que cruce fin de año, el ancho ya asignado se
+          quedaria corto.
+        */}
+        {campos.filter(esFiltrable).map((campo) =>
+          campo.filtro.tipo === 'fecha' ? (
+            <div key={`${campo.filtroKey}-rango`} data-filtro-key={campo.filtroKey} className='inline-block'>
+              <BotonFiltroVentas
+                columna={campo}
+                texto={ETIQUETA_FECHA_PEOR_CASO}
+                filtroActivo
+                ordenActivo='asc'
+                prioridadOrden={0}
+                totalCriterios={2}
+                onClickHeader={NOOP}
+                onClickOrdenar={NOOP}
+              />
+            </div>
+          ) : null
+        )}
       </div>
     </div>
   );

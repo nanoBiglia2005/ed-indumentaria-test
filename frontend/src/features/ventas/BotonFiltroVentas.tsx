@@ -24,6 +24,13 @@ import type { ColumnaTabla } from '@/components/tabla/tipos';
  */
 interface BotonFiltroVentasProps<T> {
   columna: ColumnaTabla<T>;
+  /**
+   * Texto visible del boton. Por defecto `columna.header` — FiltrosVentasToolbar
+   * pasa otra cosa cuando hay un filtro de fecha activo (el preset elegido, o
+   * el rango personalizado), para mostrar QUE se esta filtrando en vez de solo
+   * el nombre de la columna.
+   */
+  texto?: string;
   filtroActivo: boolean;
   ordenActivo: 'asc' | 'desc' | null;
   prioridadOrden: number;
@@ -41,6 +48,7 @@ interface BotonFiltroVentasProps<T> {
 
 export default function BotonFiltroVentas<T>({
   columna,
+  texto,
   filtroActivo,
   ordenActivo,
   prioridadOrden,
@@ -64,7 +72,7 @@ export default function BotonFiltroVentas<T>({
           filtroActivo ? 'hover:bg-violet-600' : 'hover:bg-amber-50 hover:text-amber-700'
         }`}
       >
-        <span className='flex-1 truncate'>{columna.header}</span>
+        <span className='flex-1 truncate'>{texto ?? columna.header}</span>
         <svg
           className={`h-3.5 w-3.5 shrink-0 ${filtroActivo ? 'text-white' : 'text-gray-400'}`}
           fill='none'

@@ -20,8 +20,10 @@ const { IDS_GRUPOS_DE_CLIENTES } = require('../constants/agrupaciones');
 const {
   SIEMPRE,
   NUNCA,
+  SIN_ASIGNAR_ID,
   contiene,
   rango,
+  seleccionFk,
   error400,
   parseEntero,
   parseFiltros,
@@ -30,9 +32,6 @@ const {
 
 const TAMANO_PAGINA_DEFECTO = 30;
 const TAMANO_PAGINA_MAX = 200;
-
-// Espejo de SIN_ASIGNAR_ID de frontend/src/components/tabla/tipos.ts.
-const SIN_ASIGNAR_ID = -1;
 
 // Tipo de filtro de cada columna, en el mismo orden que columnas.tsx. Es la
 // lista blanca de claves aceptadas: cualquier otra es un 400.
@@ -113,22 +112,8 @@ const condicionBusqueda = (termino) =>
 //  FILTROS POR COLUMNA
 // ============================================================
 
-// SIEMPRE/NUNCA/rango viven en consultaSql.js, compartidos con remitosConsulta.js.
-
-// Seleccion sobre una FK: los ids elegidos, mas la condicion de "Sin asignar"
-// cuando esa opcion (id -1) esta tildada. Sin ningun id no pasa ninguna fila,
-// igual que el `ids.includes()` del motor actual.
-//
-// `idFicticio` dice si el -1 es SOLO la opcion "Sin asignar" (linea, subgrupo:
-// no existe una linea ni un subgrupo con id -1) o si ademas es un id real que
-// hay que dejar en el IN (grupos: "No Asignado" es el grupo -1).
-const seleccionFk = (columna, ids, sinAsignar, { idFicticio = true } = {}) => {
-  const reales = idFicticio ? ids.filter((id) => id !== SIN_ASIGNAR_ID) : ids;
-  const partes = [];
-  if (reales.length > 0) partes.push(Prisma.sql`${columna} IN (${Prisma.join(reales)})`);
-  if (ids.includes(SIN_ASIGNAR_ID)) partes.push(sinAsignar);
-  return partes.length === 0 ? NUNCA : Prisma.sql`(${Prisma.join(partes, ' OR ')})`;
-};
+// SIEMPRE/NUNCA/rango/seleccionFk/SIN_ASIGNAR_ID viven en consultaSql.js,
+// compartidos con remitosConsulta.js.
 
 const existeCliente = (condicion) =>
   Prisma.sql`EXISTS (SELECT 1 FROM "ARTICULOS_X_CLIENTE" ax WHERE ax.id_articulo = a.id_articulo AND ${condicion})`;
